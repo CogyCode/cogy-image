@@ -1,0 +1,37 @@
+# The Cogy Image service (image/image.py) on the private network address.
+# install.sh fills in the @...@ values.
+#
+# Starts after the model server has loaded the model, after the firewall
+# rules, and after Tailscale. If the private address is not up yet when it
+# starts, binding fails and it is started again 10 seconds later.
+[Unit]
+Description=@NAME@ (@ROLE@) on http://@PRIVATE_IP@:@PORT@
+Requires=@MODEL_SERVICE_NAME@.service
+Wants=tailscaled.service @FIREWALL_SERVICE_NAME@.service
+After=@MODEL_SERVICE_NAME@.service tailscaled.service @FIREWALL_SERVICE_NAME@.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+WorkingDirectory=@INSTALL_DIR@/image
+ExecStart=/usr/bin/python3 -u @INSTALL_DIR@/image/image.py --config @CONFIG_DIR@/image.json
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=@LOG_DIR@
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+# Cogy Image firewall rules. install.sh fills in the @...@ values and installs
+# this as /etc/cogy-image/firewall.nft; cogy-image-firewall.service loads it.
+#
+# - The API port is reachable only from the allowed addresses (IPv4) and from
+#   this machine itself (for its self-test); every other source, IPv4 or
+#   IPv6, is dropped.
+# - The model server's port is reachable only from this machine.
+#
+# A table of its own, so it does not touch other rules. A drop here holds
+# whatever other tables accept; an accept here does not override a drop
+# elsewhere (install.sh adds a ufw rule too when ufw is active).
+
+# Replace the table atomically: create it if missing, delete it, define it.
+table inet @NFT_TABLE@
+delete table inet @NFT_TABLE@
+
+table inet @NFT_TABLE@ {
+    set allowed {
+        type ipv4_addr
+        flags interval
+        elements = { @ALLOW_ELEMENTS@ }
+    }
+
+    chain input {
+        type filter hook input priority filter - 10; policy accept;
+        # This machine itself (the installer's self-test and verify.py): a
+        # connection to its own private address arrives on lo, from that
+        # address, which is not in the allowed set.
+        iifname "lo" tcp dport @PORT@ accept
+        tcp dport @PORT@ ip saddr @allowed accept
+        tcp dport @PORT@ counter drop
+        iifname != "lo" tcp dport @MODEL_PORT@ counter drop
+    }
+}

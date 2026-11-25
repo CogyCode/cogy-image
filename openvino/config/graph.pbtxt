@@ -1,0 +1,47 @@
+# OVMS MediaPipe graph (Qwen3-VL-8B-Instruct INT4 on the Intel GPU).
+# install.ps1 copies this file into the model directory. OVMS picks the
+# vision pipeline from the model's image encoder files.
+#
+# 2 request slots of up to 16k tokens each:
+#   - max_num_seqs: 2 requests decoded together.
+#   - cache_size: 3 GB of KV cache at u8 precision. The model has 36 layers
+#     with 8 KV heads of 128 dims, about 72 KB per token at u8, so 2 x 16k
+#     tokens need about 2.4 GB; the rest is headroom.
+# The 16k context limit is set in the model's config.json by install.ps1.
+
+input_stream: "HTTP_REQUEST_PAYLOAD:input"
+output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+
+node: {
+  name: "LLMExecutor"
+  calculator: "HttpLLMCalculator"
+  input_stream: "LOOPBACK:loopback"
+  input_stream: "HTTP_REQUEST_PAYLOAD:input"
+  input_side_packet: "LLM_NODE_RESOURCES:llm"
+  output_stream: "LOOPBACK:loopback"
+  output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+  input_stream_info: {
+    tag_index: 'LOOPBACK:0',
+    back_edge: true
+  }
+  node_options: {
+    [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {
+      models_path: "./",
+      device: "GPU",
+      plugin_config: '{"KV_CACHE_PRECISION": "u8"}',
+      cache_size: 3,
+      max_num_seqs: 2,
+      enable_prefix_caching: true,
+    }
+  }
+  input_stream_handler {
+    input_stream_handler: "SyncSetInputStreamHandler",
+    options {
+      [mediapipe.SyncSetInputStreamHandlerOptions.ext] {
+        sync_set {
+          tag_index: "LOOPBACK:0"
+        }
+      }
+    }
+  }
+}

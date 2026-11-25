@@ -1,0 +1,44 @@
+# Model server for Cogy Image: GenieX serving the vision-language model on
+# the NPU, on 127.0.0.1 only. install.sh fills in the @...@ values.
+#
+# GenieX loads a model on its first request and unloads it after --keepalive
+# idle seconds, so the keepalive is set to 100 years and ExecStartPost loads
+# the model (image.py --warm-up), so systemd reports the unit started only
+# once the model is loaded.
+#
+# GenieX releases the NPU's buffers on SIGTERM. A SIGKILL leaves them reserved
+# until reboot, so it gets time to shut down.
+[Unit]
+Description=@NAME@ model server (GenieX): @MODEL_NAME@ on http://127.0.0.1:@MODEL_PORT@
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+SupplementaryGroups=@NPU_GROUPS@
+WorkingDirectory=@STATE_DIR@
+Environment=HOME=@STATE_DIR@
+Environment=LD_LIBRARY_PATH=@INSTALL_DIR@/geniex
+ExecStart=@INSTALL_DIR@/geniex/geniex serve --host 127.0.0.1:@MODEL_PORT@ --keepalive 3153600000 --model @MODEL_NAME@ --compute npu --power-mode @POWER_MODE@ --think=false
+ExecStartPost=/usr/bin/python3 @INSTALL_DIR@/image/image.py --config @CONFIG_DIR@/image.json --warm-up
+TimeoutStartSec=15min
+KillSignal=SIGTERM
+TimeoutStopSec=90
+Restart=always
+RestartSec=10
+LimitMEMLOCK=infinity
+
+# Hardening. The NPU's device nodes are needed, so devices are not private.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=@STATE_DIR@
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

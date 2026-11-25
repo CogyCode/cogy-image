@@ -1,0 +1,17 @@
+# Loads Cogy Image's firewall rules (firewall.nft) at boot, before the
+# network and the image service come up. install.sh fills in the @...@ values.
+[Unit]
+Description=@NAME@ firewall rules (nftables table inet @NFT_TABLE@)
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target @SERVICE_NAME@.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@NFT@ -f @CONFIG_DIR@/firewall.nft
+ExecStop=-@NFT@ delete table inet @NFT_TABLE@
+
+[Install]
+WantedBy=multi-user.target
